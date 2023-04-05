@@ -18,7 +18,7 @@ const REGION_WIDTH: usize = 8;
 
 impl<'tcx> RegionInferenceContext<'tcx> {
     /// Write out our state into the `.mir` files.
-    pub(crate) fn dump_mir(&self, tcx: TyCtxt<'tcx>, out: &mut dyn Write) -> io::Result<()> {
+    pub fn dump_mir(&self, tcx: TyCtxt<'tcx>, out: &mut dyn Write) -> io::Result<()> {
         writeln!(out, "| Free Region Mapping")?;
 
         for region in self.regions() {

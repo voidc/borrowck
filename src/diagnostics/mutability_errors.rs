@@ -348,8 +348,8 @@ impl<'a, 'tcx> MirBorrowckCtxt<'a, 'tcx> {
                     if matches!(
                         decl.local_info,
                         Some(box LocalInfo::User(ClearCrossCrate::Set(BindingForm::ImplicitSelf(
-                            hir::ImplicitSelfKind::MutRef
-                        ),)))
+                            hir::ImplicitSelfKind::MutRef,
+                        ))))
                     ) {
                         err.note(
                             "as `Self` may be unsized, this call attempts to take `&mut &mut self`",

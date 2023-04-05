@@ -1,5 +1,6 @@
 //! This query borrow-checks the MIR to (further) ensure it is not broken.
 
+#![feature(rustc_private)]
 #![feature(associated_type_bounds)]
 #![feature(box_patterns)]
 #![feature(let_chains)]
@@ -16,6 +17,27 @@
 extern crate rustc_middle;
 #[macro_use]
 extern crate tracing;
+
+extern crate either;
+extern crate polonius_engine;
+extern crate smallvec;
+
+extern crate rustc_const_eval;
+extern crate rustc_data_structures;
+extern crate rustc_errors;
+extern crate rustc_graphviz;
+extern crate rustc_hir;
+extern crate rustc_index;
+extern crate rustc_infer;
+extern crate rustc_lexer;
+extern crate rustc_macros;
+extern crate rustc_mir_dataflow;
+extern crate rustc_serialize;
+extern crate rustc_session;
+extern crate rustc_span;
+extern crate rustc_target;
+extern crate rustc_trait_selection;
+extern crate rustc_traits;
 
 use rustc_data_structures::fx::{FxIndexMap, FxIndexSet};
 use rustc_data_structures::graph::dominators::Dominators;
@@ -62,7 +84,6 @@ use crate::session_diagnostics::VarNeedNotMut;
 use self::diagnostics::{AccessKind, RegionName};
 use self::location::LocationTable;
 use self::prefixes::PrefixSet;
-use facts::AllFacts;
 
 use self::path_utils::*;
 
@@ -133,7 +154,10 @@ pub fn provide(providers: &mut Providers) {
     };
 }
 
-fn mir_borrowck(tcx: TyCtxt<'_>, def: ty::WithOptConstParam<LocalDefId>) -> &BorrowCheckResult<'_> {
+pub fn mir_borrowck(
+    tcx: TyCtxt<'_>,
+    def: ty::WithOptConstParam<LocalDefId>,
+) -> &BorrowCheckResult<'_> {
     let (input_body, promoted) = tcx.mir_promoted(def);
     debug!("run query mir_borrowck: {}", tcx.def_path_str(def.did.to_def_id()));
 
@@ -252,13 +276,13 @@ fn do_mir_borrowck<'tcx>(
     let borrow_set =
         Rc::new(BorrowSet::build(tcx, body, locals_are_invalidated_at_exit, &mdpe.move_data));
 
-    let use_polonius = return_body_with_facts || infcx.tcx.sess.opts.unstable_opts.polonius;
+    let use_polonius = false;
 
     // Compute non-lexical lifetimes.
     let nll::NllOutput {
         regioncx,
         opaque_type_values,
-        polonius_input,
+        polonius_input: _,
         polonius_output,
         opt_closure_req,
         nll_errors,
@@ -456,12 +480,11 @@ fn do_mir_borrowck<'tcx>(
     };
 
     let body_with_facts = if return_body_with_facts {
-        let output_facts = mbcx.polonius_output.expect("Polonius output was not computed");
         Some(Box::new(BodyWithBorrowckFacts {
             body: body_owned,
-            input_facts: *polonius_input.expect("Polonius input facts were not generated"),
-            output_facts,
             location_table: location_table_owned,
+            regioncx,
+            borrow_set,
         }))
     } else {
         None
@@ -480,12 +503,10 @@ fn do_mir_borrowck<'tcx>(
 pub struct BodyWithBorrowckFacts<'tcx> {
     /// A mir body that contains region identifiers.
     pub body: Body<'tcx>,
-    /// Polonius input facts.
-    pub input_facts: AllFacts,
-    /// Polonius output facts.
-    pub output_facts: Rc<self::nll::PoloniusOutput>,
     /// The table that maps Polonius points to locations in the table.
     pub location_table: LocationTable,
+    pub regioncx: Rc<RegionInferenceContext<'tcx>>,
+    pub borrow_set: Rc<BorrowSet<'tcx>>,
 }
 
 pub struct BorrowckInferCtxt<'cx, 'tcx> {
