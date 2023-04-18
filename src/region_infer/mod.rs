@@ -598,9 +598,29 @@ impl<'tcx> RegionInferenceContext<'tcx> {
     }
 
     /// Returns access to the value of `r` for debugging purposes.
-    pub(crate) fn region_value_str(&self, r: RegionVid) -> String {
+    pub fn region_value_str(&self, r: RegionVid) -> String {
         let scc = self.constraint_sccs.scc(r.to_region_vid());
         self.scc_values.region_value_str(scc)
+    }
+
+    pub fn regions_ending_at_locs(&self) -> FxIndexMap<Location, FxIndexSet<RegionVid>> {
+        let mut map: FxIndexMap<Location, FxIndexSet<RegionVid>> = Default::default();
+        for (scc, re) in self.scc_representatives.iter_enumerated() {
+            let mut open: Option<Location> = None;
+
+            for loc in self.scc_values.locations_outlived_by(scc) {
+                if let Some(open_loc) = open
+                    && (open_loc.block != loc.block || open_loc.statement_index != loc.statement_index - 1) {
+                    map.entry(open_loc).or_default().insert(*re);
+                }
+                open = Some(loc);
+            }
+
+            if let Some(open_loc) = open {
+                map.entry(open_loc).or_default().insert(*re);
+            }
+        }
+        map
     }
 
     pub(crate) fn placeholders_contained_in<'a>(

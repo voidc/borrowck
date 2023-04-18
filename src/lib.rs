@@ -91,7 +91,7 @@ pub mod borrow_set;
 mod borrowck_errors;
 mod constraint_generation;
 mod constraints;
-mod dataflow;
+pub mod dataflow;
 mod def_use;
 mod diagnostics;
 mod facts;
@@ -118,7 +118,7 @@ use dataflow::{BorrowIndex, BorrowckFlowState as Flows, BorrowckResults, Borrows
 use nll::{PoloniusOutput, ToRegionVid};
 use place_ext::PlaceExt;
 use places_conflict::{places_conflict, PlaceConflictBias};
-use region_infer::RegionInferenceContext;
+pub use region_infer::RegionInferenceContext;
 use renumber::RegionCtxt;
 
 fluent_messages! { "../messages.ftl" }
@@ -322,7 +322,9 @@ fn do_mir_borrowck<'tcx>(
 
     let regioncx = Rc::new(regioncx);
 
-    let flow_borrows = Borrows::new(tcx, body, &regioncx, &borrow_set)
+    let borrows = Borrows::new(tcx, body, &regioncx, &borrow_set);
+    let ending_borrows = borrows.borrows_out_of_scope_at_location.clone();
+    let flow_borrows = borrows
         .into_engine(tcx, body)
         .pass_name("borrowck")
         .iterate_to_fixpoint();
@@ -482,9 +484,11 @@ fn do_mir_borrowck<'tcx>(
     let body_with_facts = if return_body_with_facts {
         Some(Box::new(BodyWithBorrowckFacts {
             body: body_owned,
-            location_table: location_table_owned,
+            promoted,
+            // location_table: location_table_owned,
             regioncx,
             borrow_set,
+            borrows_out_of_scope_at_location: ending_borrows,
         }))
     } else {
         None
@@ -500,13 +504,16 @@ fn do_mir_borrowck<'tcx>(
 ///
 /// We need to include the MIR body here because the region identifiers must
 /// match the ones in the Polonius facts.
+#[derive(Clone)]
 pub struct BodyWithBorrowckFacts<'tcx> {
     /// A mir body that contains region identifiers.
     pub body: Body<'tcx>,
+    pub promoted: IndexVec<Promoted, Body<'tcx>>,
     /// The table that maps Polonius points to locations in the table.
-    pub location_table: LocationTable,
+    // pub location_table: LocationTable,
     pub regioncx: Rc<RegionInferenceContext<'tcx>>,
     pub borrow_set: Rc<BorrowSet<'tcx>>,
+    pub borrows_out_of_scope_at_location: FxIndexMap<Location, Vec<BorrowIndex>>,
 }
 
 pub struct BorrowckInferCtxt<'cx, 'tcx> {
