@@ -116,8 +116,8 @@ pub mod consumers;
 use borrow_set::{BorrowData, BorrowSet};
 use dataflow::{BorrowIndex, BorrowckFlowState as Flows, BorrowckResults, Borrows};
 use nll::{PoloniusOutput, ToRegionVid};
-use place_ext::PlaceExt;
-use places_conflict::{places_conflict, PlaceConflictBias};
+pub use place_ext::PlaceExt;
+pub use places_conflict::{places_conflict, PlaceConflictBias};
 pub use region_infer::RegionInferenceContext;
 use renumber::RegionCtxt;
 
