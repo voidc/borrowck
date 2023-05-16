@@ -322,9 +322,7 @@ fn do_mir_borrowck<'tcx>(
 
     let regioncx = Rc::new(regioncx);
 
-    let borrows = Borrows::new(tcx, body, &regioncx, &borrow_set);
-    let ending_borrows = borrows.borrows_out_of_scope_at_location.clone();
-    let flow_borrows = borrows
+    let flow_borrows = Borrows::new(tcx, body, &regioncx, &borrow_set)
         .into_engine(tcx, body)
         .pass_name("borrowck")
         .iterate_to_fixpoint();
@@ -488,7 +486,6 @@ fn do_mir_borrowck<'tcx>(
             // location_table: location_table_owned,
             regioncx,
             borrow_set,
-            borrows_out_of_scope_at_location: ending_borrows,
         }))
     } else {
         None
@@ -513,7 +510,6 @@ pub struct BodyWithBorrowckFacts<'tcx> {
     // pub location_table: LocationTable,
     pub regioncx: Rc<RegionInferenceContext<'tcx>>,
     pub borrow_set: Rc<BorrowSet<'tcx>>,
-    pub borrows_out_of_scope_at_location: FxIndexMap<Location, Vec<BorrowIndex>>,
 }
 
 pub struct BorrowckInferCtxt<'cx, 'tcx> {
